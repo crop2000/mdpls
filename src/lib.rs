@@ -10,7 +10,7 @@ use lsp_types::notification::Notification as LspNotification;
 use lsp_types::request::Request as LspRequest;
 use lsp_types::{
     lsp_notification, lsp_request, ExecuteCommandOptions, InitializeResult, ServerCapabilities,
-    ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions, Url,
     WorkDoneProgressOptions,
 };
 use serde::de::{self, Visitor};
@@ -149,6 +149,7 @@ pub struct Server<R, W> {
         std::sync::mpsc::Sender<DeferEvent>,
         thread::JoinHandle<()>,
     )>,
+    last_uri: Option<Url>,
     /// True if the server is being run as part of a test. The preview will not be spawned.
     #[doc(hidden)]
     pub test: bool,
@@ -173,8 +174,18 @@ where
             settings,
             shutdown: false,
             markdown_server: Arc::new(Mutex::new(server)),
+            last_uri: None,
             test: false,
             defer_control: None,
+        }
+    }
+
+    fn is_new_uri(&mut self, uri: &Url) -> bool {
+        if self.last_uri.as_ref() == Some(uri) {
+            false
+        } else {
+            self.last_uri = Some(uri.clone());
+            true
         }
     }
 
@@ -347,6 +358,15 @@ where
                     )
                     .unwrap();
 
+                if self.settings.serve_static {
+                    if self.is_new_uri(&params.text_document.uri) {
+                        let tfp = params.text_document.uri.to_file_path();
+                        if let Some(parent) = tfp.as_ref().ok().and_then(|p| p.parent()) {
+                            self.markdown_server.lock().unwrap().set_static_root(parent);
+                        }
+                    }
+                }
+
                 self.markdown_server
                     .lock()
                     .unwrap()
@@ -365,6 +385,15 @@ where
                 assert_eq!(content_changes.len(), 1);
 
                 let new_doc = content_changes.remove(0).text;
+
+                if self.settings.serve_static {
+                    if self.is_new_uri(&params.text_document.uri) {
+                        let tfp = params.text_document.uri.to_file_path();
+                        if let Some(parent) = tfp.as_ref().ok().and_then(|p| p.parent()) {
+                            self.markdown_server.lock().unwrap().set_static_root(parent);
+                        }
+                    }
+                }
 
                 return Some(new_doc);
             }
