@@ -13,8 +13,8 @@ serde = "1.0.104"
 log-panics = { version = "2.0.0", features = ["with-backtrace"] }
 simple-logging = "2.0.2"
 log = "0.4.8"
-buf_redux = "0.8.4"
-aurelius = "0.7.2"
+buf_redux = { package = "buffer-redux" , version = "1.0"}
+aurelius = { git = "https://github.com/crop2000/aurelius.git" }
 env_logger = "0.7.1"
 thiserror = "1.0.10"
 
